@@ -1,4 +1,4 @@
-from larpixdaq.routines.routines import Routine
+from larpixdaq.routines import Routine
 import os
 
 config_dir=os.path.join(os.path.dirname(__file__), '../configs/')
@@ -32,6 +32,8 @@ def _load_configuration(controller, send_data, send_info, *args):
         if not valid:
             to_return = 'error'
             send_info('could not verify: {}'.format(diff_registers))
+        else:
+            send_info('config verified')
     return controller, to_return
 
 load_configuration = Routine('load_configuration', _load_configuration, ['chip','config_name'])

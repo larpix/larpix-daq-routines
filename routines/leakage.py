@@ -1,4 +1,4 @@
-from routines import Routine
+from larpixdaq.routines import Routine
 import copy
 from larpix.larpix import Configuration
 
@@ -22,9 +22,9 @@ def _leakage(controller, send_data, send_info, *args):
     orig_config = copy.deepcopy(chip.config)
     chip.config.periodic_reset = 0
     controller.write_configuration(chip_key, Configuration.test_mode_xtrig_reset_diag_address)
-    controller.logger.disable()
-    controller.run(quick_run_time,message='flush queue')
-    controller.logger.enable()
+
+    send_info('start leakage routine')
+    controller.io.empty_queue()
     controller.run(run_time,message='leakage {}'.format(chip_key))
     packets = list(filter(lambda x: x.chip_key == chip_key, controller.reads[-1]))
     for channel in range(32):

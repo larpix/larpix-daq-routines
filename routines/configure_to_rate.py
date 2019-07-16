@@ -1,4 +1,4 @@
-from larpixdaq.routines.routines import Routine
+from larpixdaq.routines import Routine
 from larpix.larpix import Configuration, Packet
 from collections import defaultdict
 import time
@@ -21,9 +21,7 @@ def npackets_by_channel(packets):
     return return_dict
 
 def flush_queue(controller):
-    controller.logger.disable()
-    controller.run(quick_run_time,message=log_msg('flush queue'))
-    controller.logger.enable()
+    controller.io.empty_queue()
 
 def _configure_to_rate(controller, send_data, send_info, *args):
     '''

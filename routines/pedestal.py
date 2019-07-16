@@ -1,10 +1,10 @@
-from routines import Routine
+from larpixdaq.routines import Routine
 import copy
 import statistics as stats
 
 run_time = 0.1
 global_threshold = 0
-sample_cycles = 200
+sample_cycles = 255
 
 def _pedestal(controller, send_data, send_info, *args):
     '''
@@ -19,22 +19,20 @@ def _pedestal(controller, send_data, send_info, *args):
 
     orig_config = copy.deepcopy(chip.config)
 
+    controller.disable(chip_key)
     chip.config.global_threshold = global_threshold
-    chip.config.disable_channels()
     chip.config.sample_cycles = sample_cycles
     controller.write_configuration(chip_key)
 
-    controller.logger.disable()
     for channel in range(32):
         send_info('pedestal ch {}'.format(channel))
         controller.enable(chip_key, [channel])
-        controller.run(run_time,message='flush queue')
-        controller.logger.enable()
+        controller.io.empty_queue()
         controller.run(run_time,message='pedestal ch {}'.format(channel))
-        controller.logger.disable()
         controller.disable(chip_key)
-        adcs = controller.reads[-1].extract('adc_value',chip_key = chip_key, channel_id=channel)
-        send_info('ch {} - mean {} - stdev {} - med {}'.format(channel, stats.mean(adcs), stats.stdev(adcs), stats.median(adcs)))
+        adcs = controller.reads[-1].extract('adc_counts', chip_key=chip_key, channel=channel)
+        if len(adcs) > 0:
+            send_info('ch {} - mean {} - stdev {} - med {} - N {}'.format(channel, stats.mean(adcs), stats.stdev(adcs), stats.median(adcs), len(adcs)))
 
     chip.config = orig_config
     controller.write_configuration(chip_key)
