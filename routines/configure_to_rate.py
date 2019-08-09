@@ -65,20 +65,27 @@ def _configure_to_rate(controller, send_data, send_info, *args):
     # Step down through global threshold settings
     send_info('start coarse global threshold scan')
     break_flag = False
+    repeat_flag = False
     while not break_flag:
         flush_queue(controller)
         controller.run(quick_run_time, message=log_msg('coarse global check rate', chip_key))
         packets = filter(lambda x: x.chip_key == chip_key, controller.reads[-1])
         npackets = npackets_by_channel(packets)
         send_info('{} - n packets: {}'.format(chip.config.global_threshold, npackets))
-        for channel,npacket in npackets.items():
-            if npacket >= rate * quick_run_time:
+        if any([npacket >= rate * quick_run_time for channel,npacket in npackets.items()]):
+            if repeat_flag:
                 break_flag = True
+            else:
+                repeat_flag = True
+                send_info('repeating last value')
+        else:
+            repeat_flag = False
         if all([channel in disabled_channels for channel in range(32)]):
             break_flag = True
         if not break_flag:
             try:
-                chip.config.global_threshold -= 1
+                if not repeat_flag:
+                    chip.config.global_threshold -= 1
             except ValueError:
                 break_flag = True
             finally:
@@ -108,6 +115,7 @@ def _configure_to_rate(controller, send_data, send_info, *args):
     # Step down through trim threshold settings
     send_info('start coarse pixel trim threshold scan')
     break_flag = False
+    flagged_channels = []
     completed_channels = [] + disabled_channels
     while not break_flag:
         skip_trim_adjustment = False
@@ -118,7 +126,10 @@ def _configure_to_rate(controller, send_data, send_info, *args):
         send_info('n packets: {}'.format(npackets))
         for channel,npacket in npackets.items():
             if npacket >= rate * quick_run_time:
-                completed_channels += [channel]
+                if channel not in flagged_channels:
+                    flagged_channels += [channel]
+                else:
+                    completed_channels += [channel]
                 skip_trim_adjustment = True
         if not skip_trim_adjustment:
             for channel in list(filter(lambda x: x not in completed_channels, range(32))):
