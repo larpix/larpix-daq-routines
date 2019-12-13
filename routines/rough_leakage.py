@@ -29,34 +29,45 @@ def _rough_leakage(controller, send_data, send_info, *args):
     chip.config.periodic_reset = 0
     chip.config.global_threshold = 125
     chip.config.pixel_trim_thresholds = [31]*32
-    if parallelize:
+    if not parallelize:
         chip.config.channel_mask = [1]*32
 
     registers_to_write = [Configuration.global_threshold_address] + \
         Configuration.pixel_trim_threshold_addresses + \
         [Configuration.test_mode_xtrig_reset_diag_address]
-    if parallelize:
+    if not parallelize:
         registers_to_write += Configuration.channel_mask_addresses
     controller.write_configuration(chip_key, registers_to_write)
 
     send_info('start rough_leakage routine')
     controller.io.empty_queue()
-    channel = 0
+    iter_idx = 0
     while True:
-        if parallelize:
+        if not parallelize:
+            # prep channel mask for channel to test
             chip.config.channel_mask = [1]*32
-            chip.config.channel_mask[channel] = 0
+            chip.config.channel_mask[iter_idx] = 0
             controller.write_configuration(chip_key, Configuration.channel_mask_addresses)
-        send_info('run rough_leakage {}'.format(channel))
-        controller.run(run_time,message='rough_leakage {} {}'.format(chip_key, channel))
+        # collect data for the specified run time
+        send_info('run rough_leakage {}'.format(iter_idx))
+        controller.run(run_time,message='rough_leakage {} {}'.format(chip_key, iter_idx))
+
+        # log number of triggers received for each channel
         packets = list(filter(lambda x: x.chip_key == chip_key, controller.reads[-1]))
         for channel in range(32):
             channel_packets = list(filter(lambda x: x.channel_id == channel, packets))
-            send_info('rate {}: {} Hz'.format(channel, len(channel_packets)/run_time))
-        if parallelize and channel < 30:
-            channel += 1
+            print_str = 'rate {}: {} Hz'.format(channel, len(channel_packets)/run_time)
+            if parallelize:
+                send_info(print_str)
+            elif len(channel_packets) > 0 or channel == iter_idx:
+                send_info(print_str)
+
+        # check next channel or end loop
+        if not parallelize and iter_idx < 31:
+            iter_idx += 1
         else:
             break
+
     chip.config = orig_config
     controller.write_configuration(chip_key)
 
